@@ -14,7 +14,7 @@ WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 ARQUIVO = "resultados.json"
 
 if not TOKEN:
-raise RuntimeError("BOT_TOKEN não foi configurado.")
+    raise RuntimeError("BOT_TOKEN não foi configurado.")
 
 app_web = Flask(**name**)
 
