@@ -16,7 +16,7 @@ ARQUIVO = "resultados.json"
 if not TOKEN:
     raise RuntimeError("BOT_TOKEN não foi configurado.")
 
-app_web = Flask(**name**)
+app_web = Flask(__name__)
 
 telegram_app = Application.builder().token(TOKEN).build()
 
