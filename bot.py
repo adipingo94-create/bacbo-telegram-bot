@@ -21,8 +21,8 @@ app_web = Flask(__name__)
 telegram_app = Application.builder().token(TOKEN).build()
 
 def carregar_resultados():
-if not os.path.exists(ARQUIVO):
-return []
+   if not os.path.exists(ARQUIVO):
+       return []
 
 ```
 try:
