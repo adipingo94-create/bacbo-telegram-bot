@@ -1,13 +1,13 @@
+```python
 import os
 import json
+import asyncio
 from collections import Counter
+
 from flask import Flask, request
 from telegram import Update
-from telegram.ext import (
-    Application,
-    CommandHandler,
-    ContextTypes
-)
+from telegram.ext import Application, CommandHandler
+
 
 # =========================
 # CONFIGURAÇÃO
@@ -15,10 +15,27 @@ from telegram.ext import (
 
 TOKEN = os.getenv("BOT_TOKEN")
 PORT = int(os.getenv("PORT", "10000"))
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 
 ARQUIVO = "resultados.json"
 
+if not TOKEN:
+    raise RuntimeError("A variável BOT_TOKEN não foi configurada.")
+
+if not WEBHOOK_URL:
+    raise RuntimeError("A variável WEBHOOK_URL não foi configurada.")
+
+
+# =========================
+# FLASK
+# =========================
+
 app_web = Flask(__name__)
+
+
+# =========================
+# TELEGRAM
+# =========================
 
 telegram_app = Application.builder().token(TOKEN).build()
 
@@ -55,7 +72,7 @@ resultados = carregar_resultados()
 # /START
 # =========================
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def start(update: Update, context):
 
     texto = """
 🎲 BAC BO ANALYZER
@@ -88,7 +105,7 @@ da próxima rodada.
 # /AJUDA
 # =========================
 
-async def ajuda(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def ajuda(update: Update, context):
 
     texto = """
 📚 COMANDOS
@@ -96,26 +113,20 @@ async def ajuda(update: Update, context: ContextTypes.DEFAULT_TYPE):
 🎲 Registrar:
 
 /resultado player
-
 /resultado banker
-
 /resultado tie
-
 
 📊 Estatísticas:
 
 /estatisticas
 
-
 📜 Últimas rodadas:
 
 /ultimos
 
-
 📈 Análise:
 
 /analise
-
 
 🗑️ Limpar:
 
@@ -129,7 +140,7 @@ async def ajuda(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # REGISTRAR RESULTADO
 # =========================
 
-async def resultado(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def resultado(update: Update, context):
 
     if not context.args:
         await update.message.reply_text(
@@ -171,7 +182,7 @@ async def resultado(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ESTATÍSTICAS
 # =========================
 
-async def estatisticas(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def estatisticas(update: Update, context):
 
     if not resultados:
         await update.message.reply_text(
@@ -211,7 +222,7 @@ async def estatisticas(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ÚLTIMOS RESULTADOS
 # =========================
 
-async def ultimos(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def ultimos(update: Update, context):
 
     if not resultados:
         await update.message.reply_text(
@@ -232,7 +243,6 @@ async def ultimos(update: Update, context: ContextTypes.DEFAULT_TYPE):
     }
 
     for numero, valor in enumerate(dados, start=inicio):
-
         texto += (
             f"{numero}. "
             f"{simbolos[valor]} "
@@ -246,7 +256,7 @@ async def ultimos(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ANÁLISE
 # =========================
 
-async def analise(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def analise(update: Update, context):
 
     if not resultados:
         await update.message.reply_text(
@@ -270,20 +280,18 @@ async def analise(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         texto += (
             f"🔵 Player: {contador['player']} "
-            f"({contador['player']/total*100:.1f}%)\n"
+            f"({contador['player'] / total * 100:.1f}%)\n"
         )
 
         texto += (
             f"🔴 Banker: {contador['banker']} "
-            f"({contador['banker']/total*100:.1f}%)\n"
+            f"({contador['banker'] / total * 100:.1f}%)\n"
         )
 
         texto += (
             f"🟡 Tie: {contador['tie']} "
-            f"({contador['tie']/total*100:.1f}%)\n\n"
+            f"({contador['tie'] / total * 100:.1f}%)\n\n"
         )
-
-    # Sequência atual
 
     atual = resultados[-1]
     sequencia = 0
@@ -302,7 +310,7 @@ async def analise(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     texto += (
         "⚠️ Os dados mostram apenas o histórico. "
-        "Não existe garantia de qual será o próximo resultado."
+        "Eles não garantem qual será o próximo resultado."
     )
 
     await update.message.reply_text(texto)
@@ -312,7 +320,7 @@ async def analise(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # LIMPAR
 # =========================
 
-async def limpar(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def limpar(update: Update, context):
 
     resultados.clear()
     salvar_resultados()
@@ -323,32 +331,7 @@ async def limpar(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # =========================
-# WEBHOOK
-# =========================
-
-@app_web.route("/", methods=["GET"])
-def inicio():
-
-    return "BAC BO BOT ONLINE"
-
-
-@app_web.route("/webhook", methods=["POST"])
-async def webhook():
-
-    dados = request.get_json(force=True)
-
-    update = Update.de_json(
-        dados,
-        telegram_app.bot
-    )
-
-    await telegram_app.process_update(update)
-
-    return "OK"
-
-
-# =========================
-# INICIALIZAÇÃO
+# COMANDOS
 # =========================
 
 telegram_app.add_handler(
@@ -380,24 +363,62 @@ telegram_app.add_handler(
 )
 
 
-if __name__ == "__main__":
+# =========================
+# ROTAS WEB
+# =========================
 
-    import asyncio
+@app_web.route("/", methods=["GET"])
+def inicio():
+    return "BAC BO BOT ONLINE"
 
-    async def iniciar():
 
-        await telegram_app.initialize()
-        await telegram_app.start()
+@app_web.route("/webhook", methods=["POST"])
+async def webhook():
 
-        print("🤖 Bot iniciado!")
+    dados = request.get_json(force=True)
 
-        await telegram_app.bot.set_webhook(
-            url=os.getenv("WEBHOOK_URL")
-        )
+    update = Update.de_json(
+        dados,
+        telegram_app.bot
+    )
 
-    asyncio.run(iniciar())
+    await telegram_app.process_update(update)
+
+    return "OK"
+
+
+# =========================
+# INICIALIZAÇÃO
+# =========================
+
+async def iniciar_telegram():
+
+    await telegram_app.initialize()
+
+    await telegram_app.start()
+
+    await telegram_app.bot.set_webhook(
+        url=f"{WEBHOOK_URL}/webhook"
+    )
+
+    print("🤖 Bot iniciado!")
+    print(f"🌐 Webhook: {WEBHOOK_URL}/webhook")
+
+
+def iniciar():
+
+    asyncio.run(iniciar_telegram())
 
     app_web.run(
         host="0.0.0.0",
         port=PORT
     )
+
+
+# =========================
+# START
+# =========================
+
+if __name__ == "__main__":
+    iniciar()
+```
